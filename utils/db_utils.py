@@ -5,6 +5,7 @@ import psycopg2
 from psycopg2 import sql
 from werkzeug.security import generate_password_hash, check_password_hash
 
+
 def get_connection():
     return psycopg2.connect(
         host="localhost",
@@ -191,3 +192,38 @@ def validate_user(username, password):
     if result and check_password_hash(result[1], password):
         return (result[0], username)  # ✅ tuple
     return None
+
+
+
+
+def insert_vehicle_prediction(make_name, sub_make_name, model_year, avg_netpremium, suminsured, final_premium_rate, risk_level):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO vehicle_premium_predictions 
+        (make_name, sub_make_name, model_year, avg_netpremium, suminsured, final_premium_rate, risk_level)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """, (make_name, sub_make_name, model_year, avg_netpremium, suminsured, final_premium_rate, risk_level))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+
+# ✅ Add this function below your existing functions
+def get_vehicle_premiums(make_name, sub_make_name, year):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT AVG(netpremium)::FLOAT
+        FROM vehicle_inspection
+        WHERE upper(make_name) = %s
+        AND upper(sub_make_name) = %s
+        AND model_year = %s
+    """, (make_name.upper(), sub_make_name.upper(), year))
+
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return row[0] if row else None

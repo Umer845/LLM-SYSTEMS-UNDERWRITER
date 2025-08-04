@@ -1,6 +1,6 @@
-import streamlit as st
+import streamlit as st 
 from datetime import datetime
-from utils.db_utils import get_vehicle_claims
+from utils.db_utils import get_vehicle_claims, insert_vehicle_prediction, get_vehicle_premiums
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_community.llms import Ollama
@@ -36,23 +36,41 @@ def show():
                         driver_age = st.number_input("Enter Driver Age", min_value=18, max_value=100)
                         if driver_age:
                             if st.button("Calculate Risk & Premium"):
-                                with st.spinner("🔄 Please wait... Calculating risk profile & premium..."):
-                                # 1️⃣ Average of last 5 years
-                                 current_year = datetime.now().year
-                                 avg_claims = []
-                                 avg_capacity = []
+                                with st.spinner("🔄 Please wait... Calculating..."):
+                                    current_year = datetime.now().year
 
-                                for y in range(current_year - 5, current_year):
-                                    row = get_vehicle_claims(make_name, sub_make_name, y)
-                                    if row and row[0] is not None and row[1] is not None:
-                                        avg_claims.append(row[0])
-                                        avg_capacity.append(row[1])
+                                    # ✅ 1️⃣ Get avg netpremium for last 5 years
+                                    netpremiums = []
+                                    for y in range(current_year - 5, current_year):
+                                        netprem = get_vehicle_premiums(make_name, sub_make_name, y)
+                                        if netprem:  # ✅ netprem is already a float!
+                                            netpremiums.append(netprem)
 
-                                if avg_claims and avg_capacity:
+                                    if not netpremiums:
+                                        st.error("❌ No netpremium data found for last 5 years.")
+                                        return
+
+                                    avg_netpremium = sum(netpremiums) / len(netpremiums)
+
+                                    # ✅ 2️⃣ Calculate base premium rate
+                                    base_premium_rate = (avg_netpremium / suminsured) * 100
+
+                                    # ✅ 3️⃣ Calculate risk profile
+                                    avg_claims, avg_capacity = [], []
+                                    for y in range(current_year - 5, current_year):
+                                        row = get_vehicle_claims(make_name, sub_make_name, y)
+                                        if row and row[0] and row[1]:
+                                            avg_claims.append(row[0])
+                                            avg_capacity.append(row[1])
+
+                                    if not avg_claims or not avg_capacity:
+                                        st.error("❌ Not enough claims data.")
+                                        return
+
                                     avg_no_of_claims = sum(avg_claims) / len(avg_claims)
                                     avg_vehicle_capacity = sum(avg_capacity) / len(avg_capacity)
 
-                                    # 2️⃣ Risk logic
+                                    # Risk scoring
                                     if driver_age < 25:
                                         age_score = 1.0
                                     elif 25 <= driver_age <= 35:
@@ -84,25 +102,27 @@ def show():
 
                                     if total_score <= 1.8:
                                         risk_level = "Low"
+                                        risk_multiplier = 1.10
                                     elif 1.8 < total_score <= 2.4:
                                         risk_level = "Low to Moderate"
+                                        risk_multiplier = 1.20
                                     elif 2.4 < total_score < 3:
                                         risk_level = "Moderate to High"
+                                        risk_multiplier = 1.35
                                     else:
                                         risk_level = "High"
+                                        risk_multiplier = 1.50
 
-                                    # 3️⃣ Premium
-                                    base_premium = (suminsured / 1_000_000) * 2
-                                    if risk_level == "Low":
-                                        premium_rate = base_premium * 1.10
-                                    elif risk_level == "Low to Moderate":
-                                        premium_rate = base_premium * 1.20
-                                    elif risk_level == "Moderate to High":
-                                        premium_rate = base_premium * 1.35
-                                    else:
-                                        premium_rate = base_premium * 1.50
+                                    # ✅ Final premium rate
+                                    final_premium_rate = base_premium_rate * risk_multiplier
 
-                                    # ✅ 4️⃣ ✅ Use LLMChain not load_qa_chain!
+                                    # ✅ Store in DB
+                                    insert_vehicle_prediction(
+                                        make_name, sub_make_name, model_year,
+                                        avg_netpremium, suminsured, final_premium_rate, risk_level
+                                    )
+
+                                    # ✅ LLM explanation
                                     template = PromptTemplate(
                                         input_variables=["risk_level", "premium_rate", "claims", "capacity"],
                                         template="""
@@ -115,7 +135,7 @@ def show():
                                     chain = LLMChain(llm=llm, prompt=template)
                                     response = chain.invoke({
                                         "risk_level": risk_level,
-                                        "premium_rate": premium_rate,
+                                        "premium_rate": final_premium_rate,
                                         "claims": avg_no_of_claims,
                                         "capacity": avg_vehicle_capacity
                                     })
@@ -132,18 +152,15 @@ def show():
                                         - Driver Age: {driver_age}
 
                                         📌 **Risk Level:** {risk_level}  
-                                        💰 **Estimated Premium:** {premium_rate:.2f}%
+                                        💰 **Final Premium:** {final_premium_rate:.2f}%
 
                                         **LLM Explanation:**  
                                         {explanation}
                                         """
                                     )
-                                else:
-                                    st.error("❌ Not enough data found for the last 5 years!")
 
     elif st.session_state.motor_insurance is False:
         st.info("If you need any information related to other insurance then give me your details, our representative will contact you shortly.")
-
         name = st.text_input("Your Name")
         phone = st.text_input("Phone Number")
         email = st.text_input("Email Address")
