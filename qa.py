@@ -8,7 +8,7 @@ from langchain_community.llms import Ollama
 def show():
     st.subheader("🧾 Do you need motor insurance?")
 
-    llm = Ollama(model="llama3")
+    llm = Ollama(model="tinyllama")
 
     if 'motor_insurance' not in st.session_state:
         st.session_state.motor_insurance = None
