@@ -66,7 +66,6 @@ background:transparent;
     flex-flow: row;
     -webkit-box-align: center;
     align-items: center;
-    height: 3rem;
     border-width: 1px;
     border-style: solid;
     border-color: none;
@@ -77,12 +76,6 @@ background:transparent;
     overflow: hidden;
 }
 
-.st-br {
-    line-height: 2.4;
-}
-.st-c3{
-height:3rem;
-}
 .st-emotion-cache-z8vbw2:hover {
     border-color: #14C76D;
     color: #14C76D;
@@ -112,6 +105,16 @@ height:3rem;
 .st-cj .st-ci .st-ch .st-cc:active{
     border: #14C76D;
 }
+.st-emotion-cache-z8vbw2:focus:not(:active) {
+    border-color: #14C76D;
+    color: #14C76D;
+}
+.st-emotion-cache-z8vbw2:active {
+    color: #ffff;
+    border-color: #14C76D;
+    background-color: #14C76D;
+}
+
 </style>
 """, unsafe_allow_html=True)
 

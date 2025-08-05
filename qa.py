@@ -1,9 +1,24 @@
-import streamlit as st 
+import streamlit as st
 from datetime import datetime
 from utils.db_utils import get_vehicle_claims, insert_vehicle_prediction, get_vehicle_premiums
-from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_community.llms import Ollama
+from langchain.chains import LLMChain
+from langchain.chains.question_answering import load_qa_chain
+from langchain_core.documents import Document
+
+
+st.markdown("""
+<style>
+.st-emotion-cache-1i94pul {
+    width: calc(51% - 1rem);
+}
+.st-emotion-cache-d5cw3g {
+    text-align: justify;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 def show():
     st.subheader("🧾 Do you need motor insurance?")
@@ -39,11 +54,10 @@ def show():
                                 with st.spinner("🔄 Please wait... Calculating..."):
                                     current_year = datetime.now().year
 
-                                    # ✅ 1️⃣ Get avg netpremium for last 5 years
                                     netpremiums = []
                                     for y in range(current_year - 5, current_year):
                                         netprem = get_vehicle_premiums(make_name, sub_make_name, y)
-                                        if netprem:  # ✅ netprem is already a float!
+                                        if netprem:
                                             netpremiums.append(netprem)
 
                                     if not netpremiums:
@@ -51,11 +65,8 @@ def show():
                                         return
 
                                     avg_netpremium = sum(netpremiums) / len(netpremiums)
-
-                                    # ✅ 2️⃣ Calculate base premium rate
                                     base_premium_rate = (avg_netpremium / suminsured) * 100
 
-                                    # ✅ 3️⃣ Calculate risk profile
                                     avg_claims, avg_capacity = [], []
                                     for y in range(current_year - 5, current_year):
                                         row = get_vehicle_claims(make_name, sub_make_name, y)
@@ -70,7 +81,6 @@ def show():
                                     avg_no_of_claims = sum(avg_claims) / len(avg_claims)
                                     avg_vehicle_capacity = sum(avg_capacity) / len(avg_capacity)
 
-                                    # Risk scoring
                                     if driver_age < 25:
                                         age_score = 1.0
                                     elif 25 <= driver_age <= 35:
@@ -113,16 +123,13 @@ def show():
                                         risk_level = "High"
                                         risk_multiplier = 1.50
 
-                                    # ✅ Final premium rate
                                     final_premium_rate = base_premium_rate * risk_multiplier
 
-                                    # ✅ Store in DB
                                     insert_vehicle_prediction(
                                         make_name, sub_make_name, model_year,
                                         avg_netpremium, suminsured, final_premium_rate, risk_level
                                     )
 
-                                    # ✅ LLM explanation
                                     template = PromptTemplate(
                                         input_variables=["risk_level", "premium_rate", "claims", "capacity"],
                                         template="""
@@ -160,10 +167,32 @@ def show():
                                     )
 
     elif st.session_state.motor_insurance is False:
-        st.info("If you need any information related to other insurance then give me your details, our representative will contact you shortly.")
-        name = st.text_input("Your Name")
-        phone = st.text_input("Phone Number")
-        email = st.text_input("Email Address")
+        st.subheader("🧠 Ask anything you want to know about insurance")
+        user_question = st.text_input("Type your question below")
 
-        if st.button("Submit"):
-            st.success(f"✅ Thank you {name}! Our representative will contact you shortly.")
+        if st.button("Ask"):
+            if "pdf_context" not in st.session_state:
+                st.warning("⚠️ Please upload a PDF first from the Upload File section.")
+                return
+
+            context_text = st.session_state.pdf_context
+            documents = [Document(page_content=context_text)]
+
+            prompt = PromptTemplate(
+                input_variables=["context", "question"],
+                template="""
+                Use the context below to answer the question.
+                If the answer is not found in the context, say: "Please ask insurance related question. I'm unable to answer unrelevant questions."
+
+                Context: {context}
+                Question: {question}
+                """
+            )
+
+            chain = LLMChain(llm=llm, prompt=prompt)
+            with st.spinner("💬 Thinking..."):
+                result = chain.invoke({
+                    "context": context_text,
+                    "question": user_question
+                })
+                st.success(result["text"])

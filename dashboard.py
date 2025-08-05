@@ -54,7 +54,6 @@ def show():
     st.markdown(card_html, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
-
     col1.markdown(f"<div class='card'><h2>{total_profiles}</h2><p>Total Risk Profiles</p></div>", unsafe_allow_html=True)
     col2.markdown(f"<div class='card'><h2>{avg_premium} %</h2><p>Average Premium Rate</p></div>", unsafe_allow_html=True)
     col3.markdown(f"<div class='card'><h2>{unique_makes}</h2><p>Unique Makes</p></div>", unsafe_allow_html=True)
@@ -92,14 +91,42 @@ def show():
         markers=True,
         line_shape='spline'
     )
-
     premium_line.update_traces(line=dict(width=3), marker=dict(size=8))
 
     # --- Layout 2x2 ---
     col4, col5 = st.columns(2)
     col4.plotly_chart(risk_pie, use_container_width=True)
     col5.plotly_chart(premium_bar, use_container_width=True)
-
     st.plotly_chart(premium_line, use_container_width=True)
+
+    st.divider()
+
+    # --- New Section: Make & Model Graph ---
+    st.markdown("### 📈 Premium Rate Analysis by Make & Model Year")
+    selected_makes = st.multiselect("Select Make(s)", sorted(df['make_name'].unique()))
+
+    if selected_makes:
+        filtered_df = df[df['make_name'].isin(selected_makes)]
+
+        make_model_avg = (
+            filtered_df
+            .groupby(['make_name', 'model_year'])['premium_rate']
+            .mean()
+            .reset_index()
+        )
+
+        make_model_chart = px.line(
+            make_model_avg,
+            x='model_year',
+            y='premium_rate',
+            color='make_name',
+            markers=True,
+            title='Premium Rate by Make & Model Year'
+        )
+
+        make_model_chart.update_traces(line=dict(width=3), marker=dict(size=6))
+        st.plotly_chart(make_model_chart, use_container_width=True)
+    else:
+        st.info("Please select at least one make to view the graph.")
 
     conn.close()
