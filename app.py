@@ -80,6 +80,12 @@ background:transparent;
 .st-br {
     line-height: 2.4;
 }
+.st-dk {
+    line-height: 2.4;
+}
+.st-b3 {
+    margin-top: 0.74rem;
+}
 .st-c3{
 height:3rem;
 }
