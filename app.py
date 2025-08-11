@@ -76,7 +76,6 @@ background:transparent;
     overflow: hidden;
 }
 
-<<<<<<< HEAD
 .st-br {
     line-height: 2.4;
 }
@@ -89,8 +88,6 @@ background:transparent;
 .st-c3{
 height:3rem;
 }
-=======
->>>>>>> 12d53be79a10e43a7f5428e26ed31cde69950273
 .st-emotion-cache-z8vbw2:hover {
     border-color: #14C76D;
     color: #14C76D;
